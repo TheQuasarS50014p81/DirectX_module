@@ -26,10 +26,24 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, LPSTR szStr, INT iC
 	return 0;
 }
 
+//OSからアクセスされるプロシージャ
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	return g_pWin->MsgProc(hWnd, uMsg, wParam, lParam);
 }
 
+//コンストラクタ
+WIN::WIN() 
+{
+	ZeroMemory(this, sizeof(WIN));
+}
+
+//デストラクタ
+WIN::~WIN()
+{
+}
+
+
+//ウィンドウ作成
 HRESULT WIN::InitWindow(HINSTANCE hInstance, INT iX, INT iY, INT iWidth, INT iHeight, LPCWSTR WindowName)
 {
 	WNDCLASSEX wc;
@@ -58,6 +72,7 @@ HRESULT WIN::InitWindow(HINSTANCE hInstance, INT iX, INT iY, INT iWidth, INT iHe
 	return S_OK;
 }
 
+//ウィンドウプロシージャー
 LRESULT WIN::MsgProc(HWND hWnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (iMsg) {
@@ -75,6 +90,7 @@ LRESULT WIN::MsgProc(HWND hWnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	return DefWindowProc(hWnd, iMsg, wParam, lParam);
 }
 
+//メッセージループとアプリケーション処理の入り口
 void WIN::Loop()
 {
 	//message roop
@@ -167,12 +183,29 @@ HRESULT WIN::InitD3D()
 	m_pDevice->CreateRasterizerState(&rdc, &pIr);
 	m_pDeviceContext->RSSetState(pIr);
 	SAFE_RELEASE(pIr);
+	//追加
+	//シェーダー初期化
+	if (FAILED(InitShader()))
+	{
+		return E_FAIL;
+	}
+	//ポリゴン作成
+	if (FAILED(InitPolygon()))
+	{
+		return E_FAIL;
+	}
 
 	return S_OK;
 }
 
+//メモリ解放
 void WIN::DestroyD3D()
 {
+	SAFE_RELEASE(m_pVertexLayout);
+	SAFE_RELEASE(m_pVertexShader);
+	SAFE_RELEASE(m_pPixelShader);
+	SAFE_RELEASE(m_pConstantBuffer);
+	SAFE_RELEASE(m_pVertexBuffer);
 	SAFE_RELEASE(m_pSwapChain);
 	SAFE_RELEASE(m_pRenderTargetView);
 	SAFE_RELEASE(m_pDeviceContext);
@@ -181,6 +214,97 @@ void WIN::DestroyD3D()
 	SAFE_RELEASE(m_pDevice);
 }
 
+//シェーダーを作成
+HRESULT WIN::InitShader()
+{
+	//hlslfile import and create blob
+	ID3DBlob *pCompiledShader = NULL;
+	ID3DBlob *pErrors = NULL;
+	//Blobからバーテックスシェーダーを作成
+	if (FAILED(D3DX11CompileFromFile(L"Simple.hlsl", NULL, NULL, "VS", "vs_5_0", 0, 0, NULL, &pCompiledShader, &pErrors, NULL)))
+	{
+		MessageBox(0, L"hlsl読み込み失敗", NULL, MB_OK);
+		return E_FAIL;
+	}
+	SAFE_RELEASE(pErrors);
+
+	if (FAILED(m_pDevice->CreateVertexShader(pCompiledShader->GetBufferPointer(), pCompiledShader->GetBufferSize(), NULL, &m_pVertexShader)))
+	{
+		SAFE_RELEASE(pCompiledShader);
+		MessageBox(0, L"バーテックスシェーダー作成失敗", NULL, MB_OK);
+		return E_FAIL;
+	}
+	//頂点インプットレイアウトを定義
+	D3D11_INPUT_ELEMENT_DESC layout[] =
+	{
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0},
+	};
+	UINT numElements = sizeof(layout) / sizeof(layout[0]);
+	//頂点インプットレイアウトを作成
+	if (FAILED(m_pDevice->CreateInputLayout(layout, numElements, pCompiledShader->GetBufferPointer(), pCompiledShader->GetBufferSize(), &m_pVertexLayout)))
+	{
+		return FALSE;
+	}
+	//blobからピクセルシェーダーを作成
+	if (FAILED(D3DX11CompileFromFile(L"Simple.hlsl", NULL, NULL, "PS", "ps_5_0", 0, 0, NULL, &pCompiledShader, &pErrors, NULL)))
+	{
+		MessageBox(0, L"hlsl読み込み失敗", NULL, MB_OK);
+		return E_FAIL;
+	}
+	SAFE_RELEASE(pErrors);
+	if (FAILED(m_pDevice->CreatePixelShader(pCompiledShader->GetBufferPointer(), pCompiledShader->GetBufferSize(), NULL, &m_pPixelShader)))
+	{
+		SAFE_RELEASE(pCompiledShader);
+		MessageBox(0, L"ピクセルシェーダー作成失敗", NULL, MB_OK);
+		return E_FAIL;
+	}
+	SAFE_RELEASE(pCompiledShader);
+	//コンスタンとバッファー作成、ここでは変換行列渡し
+	D3D11_BUFFER_DESC cb;
+	cb.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cb.ByteWidth = sizeof(SIMPLESHADER_CONSTANT_BUFFER);
+	cb.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	cb.MiscFlags = 0;
+	cb.StructureByteStride = 0;
+	cb.Usage = D3D11_USAGE_DYNAMIC;
+
+	if (FAILED(m_pDevice->CreateBuffer(&cb, NULL, &m_pConstantBuffer)))
+	{
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+//ポリゴン作成
+HRESULT WIN::InitPolygon()
+{
+	//バーテックスバッファー作成
+	SimpleVertex vertices[] =
+	{
+		D3DXVECTOR3(0.0f,0.5f,0.0f),
+		D3DXVECTOR3(0.5f, -0.5f, 0.0f),
+		D3DXVECTOR3(-0.5f,-0.5f, 0.0f),
+	};
+	D3D11_BUFFER_DESC bd;
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.ByteWidth = sizeof(SimpleVertex) * 3;
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.CPUAccessFlags = 0;
+	bd.MiscFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA InitData;
+	InitData.pSysMem = vertices;
+	if (FAILED(m_pDevice->CreateBuffer(&bd, &InitData, &m_pVertexBuffer)))
+	{
+		return E_FAIL;
+	}
+	//バーテックスバッファをセット
+	UINT stride = sizeof(SimpleVertex);
+	UINT offset = 0;
+	m_pDeviceContext->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
+
+	return S_OK;
+}
 //レンダリング
 void WIN::Render() 
 {
@@ -188,6 +312,48 @@ void WIN::Render()
 	float ClearColor[4] = { 0,0,1,1 };	//RBGA
 	m_pDeviceContext->ClearRenderTargetView(m_pRenderTargetView, ClearColor);	//画面クリア
 	m_pDeviceContext->ClearDepthStencilView(m_pDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);	//深度バッファ
+
+	D3DXMATRIX mWorld;
+	D3DXMATRIX mView;
+	D3DXMATRIX mProj;
+
+	//ワールドトランスフォーム（絶対座標変換）
+	D3DXMatrixRotationY(&mWorld, timeGetTime() / 100.0f);	//単純にyaw回転させる
+	//ビュートランスフォーム
+	D3DXVECTOR3 vEyePt(0.0f, 1.0f, -2.0f);	//camera position
+	D3DXVECTOR3 vLookatPt(0.0f, 0.0f, 0.0f);	//注視位置
+	D3DXVECTOR3 vUpVec(0.0f, 1.0f, 0.0f);	//上方位置
+	D3DXMatrixLookAtLH(&mView, &vEyePt, &vLookatPt, &vUpVec);
+	//プロジェクショントランスフォーム（射影変換）
+	D3DXMatrixPerspectiveFovLH(&mProj, D3DX_PI / 4, (FLOAT)WINDOW_WIDTH / (FLOAT)WINDOW_HEIGHT, 0.1f, 100.0f);
+
+	//使用するシェーダーの登録
+	m_pDeviceContext->VSSetShader(m_pVertexShader, NULL, 0);
+	m_pDeviceContext->PSSetShader(m_pPixelShader, NULL, 0);
+	//シェーダーのコンスタントバッファーに各種データーを渡す
+	D3D11_MAPPED_SUBRESOURCE pData;
+	SIMPLESHADER_CONSTANT_BUFFER cb;
+	if (SUCCEEDED(m_pDeviceContext->Map(m_pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &pData)))
+	{
+		//ワールド、カメラ、射影行列を渡す
+		D3DXMATRIX m = mWorld * mView*mProj;
+		D3DXMatrixTranspose(&m, &m);
+		cb.mWVP = m;
+		//カラーを渡す
+		D3DXVECTOR4 vColor(1, 0, 0, 1);
+		cb.vColor = vColor;
+		memcpy_s(pData.pData, pData.RowPitch, (void*)(&cb), sizeof(cb));
+		m_pDeviceContext->Unmap(m_pConstantBuffer, 0);
+	}
+	//このコンスタントバッファーを使うシェーダーの登録
+	m_pDeviceContext->VSSetConstantBuffers(0, 1, &m_pConstantBuffer);
+	m_pDeviceContext->PSSetConstantBuffers(0, 1, &m_pConstantBuffer);
+	//頂点インプットレイアウト
+	m_pDeviceContext->IASetInputLayout(m_pVertexLayout);
+	//プリミティブトポロジーをセット
+	m_pDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//プリミティブをレンダリング
+	m_pDeviceContext->Draw(3, 0);
 
 	m_pSwapChain->Present(0, 0);		//画面更新
 }
