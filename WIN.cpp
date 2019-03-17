@@ -17,7 +17,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, LPSTR szStr, INT iC
 			WINDOW_HEIGHT,APP_NAME)))
 		{
 			if (SUCCEEDED(g_pWin->InitD3D())) {
-				g_pWin->Run();
+				g_pWin->Loop();
 			}
 		}
 		g_pWin->DestroyD3D();
@@ -75,22 +75,31 @@ LRESULT WIN::MsgProc(HWND hWnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	return DefWindowProc(hWnd, iMsg, wParam, lParam);
 }
 
-void WIN::Run()
+void WIN::Loop()
 {
 	//message roop
 	MSG msg = { 0 };
 	ZeroMemory(&msg, sizeof(msg));
-	while (msg.message != WM_QUIT) {
-		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+	while (msg.message != WM_QUIT) 
+	{
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) 
+		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
 		else 
 		{
 			//application run
+			App();
 		}
 	}
 	//exit application
+}
+
+//アプリケーション処理。アプリのメイン関数
+void WIN::App()
+{
+	Render();
 }
 
 HRESULT WIN::InitD3D()
@@ -170,4 +179,15 @@ void WIN::DestroyD3D()
 	SAFE_RELEASE(m_pDepthStencil);
 	SAFE_RELEASE(m_pDepthStencilView);
 	SAFE_RELEASE(m_pDevice);
+}
+
+//レンダリング
+void WIN::Render() 
+{
+	//画面クリア
+	float ClearColor[4] = { 0,0,1,1 };	//RBGA
+	m_pDeviceContext->ClearRenderTargetView(m_pRenderTargetView, ClearColor);	//画面クリア
+	m_pDeviceContext->ClearDepthStencilView(m_pDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);	//深度バッファ
+
+	m_pSwapChain->Present(0, 0);		//画面更新
 }

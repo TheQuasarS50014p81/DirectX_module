@@ -23,7 +23,9 @@ public:
 	HRESULT InitWindow(HINSTANCE, INT, INT, INT, INT, LPCWSTR);
 	HRESULT InitD3D();
 	LRESULT MsgProc(HWND, UINT, WPARAM, LPARAM);
-	void Run();
+	void Loop();
+	void App();
+	void Render();
 	void DestroyD3D();
 
 	HWND m_hWnd;
