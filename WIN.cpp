@@ -1,64 +1,60 @@
-#include <windows.h>
-
-//定数定義
-#define WINDOW_WIDTH 640	//ウィンドウ幅
-#define WINDOW_HEIGHT 480	//ウィンドウ高さ
+#include "WIN.h"
 
 //グローバル変数
-HWND g_hWnd = NULL;
+WIN *g_pWin = NULL;
 
 //関数プロトタイプ宣言
-LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 //
 //エントリー関数
 //
-INT WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR szStr, INT iCmdShow)
+INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, LPSTR szStr, INT iCmdShow)
 {
-	//ウィンドウの初期化
-	static WCHAR szAppName[] = L"ウィンドウ作成";
+	g_pWin = new WIN;
+	if (g_pWin != NULL) {
+		if(SUCCEEDED(g_pWin->InitWindow(hInstance,0,0,WINDOW_WIDTH,
+			WINDOW_HEIGHT,APP_NAME))){
+			g_pWin->Run();
+		}
+		delete g_pWin;
+	}
+	return 0;
+}
 
+LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	return g_pWin->MsgProc(hWnd, uMsg, wParam, lParam);
+}
+
+HRESULT WIN::InitWindow(HINSTANCE hInstance, INT iX, INT iY, INT iWidth, INT iHeight, LPCWSTR WindowName)
+{
 	WNDCLASSEX wc;
 	ZeroMemory(&wc, sizeof(wc));
 
 	wc.cbSize = sizeof(wc);
 	wc.style = CS_HREDRAW | CS_VREDRAW;
 	wc.lpfnWndProc = WndProc;
-	wc.hInstance = hInst;
+	wc.hInstance = hInstance;
 	wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
 	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
-	wc.lpszClassName = szAppName;
+	wc.lpszClassName = WindowName;
 	wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
-
 	RegisterClassEx(&wc);
 
-	g_hWnd = CreateWindow(szAppName, szAppName, WS_OVERLAPPEDWINDOW,
-		0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0, 0, hInst, 0);
-	ShowWindow(g_hWnd, SW_SHOW);
-	UpdateWindow(g_hWnd);
-
-	//メッセージループ
-	MSG msg;
-	ZeroMemory(&msg, sizeof(msg));
-	while (msg.message != WM_QUIT)
-	{
-		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-		{
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
-		else
-		{
-			//アプリケーションの処理はここで行う
-		}
+	m_hWnd = CreateWindow(WindowName, WindowName, WS_OVERLAPPEDWINDOW,
+		0, 0, iWidth, iHeight, 0, 0, hInstance, 0);
+	if (!m_hWnd) {
+		return E_FAIL;
 	}
+	//ウィンドウの表示
+	ShowWindow(m_hWnd, SW_SHOW);
+	UpdateWindow(m_hWnd);
 
-	//終了
-	return (INT)msg.wParam;
+	return S_OK;
 }
 
-LRESULT CALLBACK WndProc(HWND hWnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
+LRESULT WIN::MsgProc(HWND hWnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (iMsg) {
 	case WM_KEYDOWN:
@@ -73,4 +69,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 		break;
 	}
 	return DefWindowProc(hWnd, iMsg, wParam, lParam);
+}
+
+void WIN::Run()
+{
+	//message roop
+	MSG msg = { 0 };
+	ZeroMemory(&msg, sizeof(msg));
+	while (msg.message != WM_QUIT) {
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		else 
+		{
+			//application run
+		}
+	}
+	//exit application
 }

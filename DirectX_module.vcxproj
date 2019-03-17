@@ -117,6 +117,9 @@
   <ItemGroup>
     <ClCompile Include="WIN.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="WIN.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
