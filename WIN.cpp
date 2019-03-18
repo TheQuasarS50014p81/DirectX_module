@@ -303,6 +303,12 @@ HRESULT WIN::InitPolygon()
 	UINT offset = 0;
 	m_pDeviceContext->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
 
+	//全てのモデルで同じポリゴン。同じバーテックスバッファーを使う。モデルごとに異なるのはモデルの位置と色
+	for (int i = 0; i < MAX_MODEL; i++) {
+		m_Model[i].vPos = D3DXVECTOR3(float(rand()) / 1000.0f - 16.0f, float(rand()) / 1000.0f - 16.0f, float(rand()) / 1000.0f + 10.0f);	//初期位置はランダム
+		m_Model[i].vColor = D3DXVECTOR4(float(rand()) / 32767.0f, float(rand()) / 32767.0f, float(rand()) / 32767.0f, 1.0f);				//色もランダム設定
+	}
+	m_iNumModel = MAX_MODEL;
 	return S_OK;
 }
 //レンダリング
@@ -320,7 +326,7 @@ void WIN::Render()
 	//ワールドトランスフォーム（絶対座標変換）
 	D3DXMatrixRotationY(&mWorld, timeGetTime() / 100.0f);	//単純にyaw回転させる
 	//ビュートランスフォーム
-	D3DXVECTOR3 vEyePt(0.0f, 1.0f, -2.0f);	//camera position
+	D3DXVECTOR3 vEyePt(0.0f, 0.0f, -2.0f);	//camera position
 	D3DXVECTOR3 vLookatPt(0.0f, 0.0f, 0.0f);	//注視位置
 	D3DXVECTOR3 vUpVec(0.0f, 1.0f, 0.0f);	//上方位置
 	D3DXMatrixLookAtLH(&mView, &vEyePt, &vLookatPt, &vUpVec);
@@ -330,21 +336,6 @@ void WIN::Render()
 	//使用するシェーダーの登録
 	m_pDeviceContext->VSSetShader(m_pVertexShader, NULL, 0);
 	m_pDeviceContext->PSSetShader(m_pPixelShader, NULL, 0);
-	//シェーダーのコンスタントバッファーに各種データーを渡す
-	D3D11_MAPPED_SUBRESOURCE pData;
-	SIMPLESHADER_CONSTANT_BUFFER cb;
-	if (SUCCEEDED(m_pDeviceContext->Map(m_pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &pData)))
-	{
-		//ワールド、カメラ、射影行列を渡す
-		D3DXMATRIX m = mWorld * mView*mProj;
-		D3DXMatrixTranspose(&m, &m);
-		cb.mWVP = m;
-		//カラーを渡す
-		D3DXVECTOR4 vColor(1, 0, 0, 1);
-		cb.vColor = vColor;
-		memcpy_s(pData.pData, pData.RowPitch, (void*)(&cb), sizeof(cb));
-		m_pDeviceContext->Unmap(m_pConstantBuffer, 0);
-	}
 	//このコンスタントバッファーを使うシェーダーの登録
 	m_pDeviceContext->VSSetConstantBuffers(0, 1, &m_pConstantBuffer);
 	m_pDeviceContext->PSSetConstantBuffers(0, 1, &m_pConstantBuffer);
@@ -352,8 +343,28 @@ void WIN::Render()
 	m_pDeviceContext->IASetInputLayout(m_pVertexLayout);
 	//プリミティブトポロジーをセット
 	m_pDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	//プリミティブをレンダリング
-	m_pDeviceContext->Draw(3, 0);
+	//プリミティブをレンダリング、複数なのでワールドトランスフォームとそれを渡す部分をループ内で処理
+	for (int i = 0; i < m_iNumModel; i++) {
+		D3DXMATRIX mTrans;
+		D3DXMatrixTranslation(&mTrans, m_Model[i].vPos.x, m_Model[i].vPos.y, m_Model[i].vPos.z);
+		mWorld = mTrans;
+		//シェーダーのコンスタントバッファーに各種データーを渡す
+		D3D11_MAPPED_SUBRESOURCE pData;
+		SIMPLESHADER_CONSTANT_BUFFER cb;
+		if (SUCCEEDED(m_pDeviceContext->Map(m_pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &pData)))
+		{
+			//ワールド、カメラ、射影行列を渡す
+			D3DXMATRIX m = mWorld * mView*mProj;
+			D3DXMatrixTranspose(&m, &m);
+			cb.mWVP = m;
+			//カラーを渡す
+			cb.vColor = m_Model[i].vColor;
+			memcpy_s(pData.pData, pData.RowPitch, (void*)(&cb), sizeof(cb));
+			m_pDeviceContext->Unmap(m_pConstantBuffer, 0);
+		}
+		//プリミティブをレンダリング
+		m_pDeviceContext->Draw(3, 0);
+	}
 
 	m_pSwapChain->Present(0, 0);		//画面更新
 }

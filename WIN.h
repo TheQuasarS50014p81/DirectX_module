@@ -16,6 +16,7 @@
 //定数定義
 #define WINDOW_WIDTH 640	//ウィンドウ幅
 #define WINDOW_HEIGHT 480	//ウィンドウ高さ
+#define MAX_MODEL	1000	//モデル最大数
 #define APP_NAME	L"DxirectX_Modules"
 
 //マクロ
@@ -29,6 +30,13 @@ struct SimpleVertex
 struct SIMPLESHADER_CONSTANT_BUFFER
 {
 	D3DXMATRIX mWVP;
+	D3DXVECTOR4 vColor;
+};
+
+//物体の構造体
+struct MODEL	//ここでは単なる三角ポリゴン
+{
+	D3DXVECTOR3 vPos;
 	D3DXVECTOR4 vColor;
 };
 //
@@ -64,4 +72,7 @@ public:
 	ID3D11Buffer		*m_pConstantBuffer;
 	//バーテックスバッファ
 	ID3D11Buffer		*m_pVertexBuffer;
+	//モデルのインスタンス配列
+	MODEL m_Model[MAX_MODEL];
+	int m_iNumModel;
 };
