@@ -83,6 +83,7 @@ LRESULT WIN::MsgProc(HWND hWnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 			PostQuitMessage(0);
 			break;
 		}
+		break;
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
@@ -115,10 +116,37 @@ void WIN::Loop()
 //アプリケーション処理。アプリのメイン関数
 void WIN::App()
 {
+	//キーボード入力　スペースキーで発射
+	static int Safety = 0;	//弾の出しすぎを防止４００フレームに１回出るようにする
+	Safety++;
+	if (Safety > 400 && m_iNumShot < MAX_SHOT && GetKeyState(VK_SPACE) & 0x80)
+	{
+		Safety = 0;
+		m_Shot[m_iNumShot].vPos = D3DXVECTOR3(0, 0, -2);
+		m_Shot[m_iNumShot].vColor = D3DXVECTOR4(1, 1, 1, 1);
+		m_iNumShot++;
+	}
+	for (int i = 0; i < m_iNumShot; i++)
+	{
+		m_Shot[i].vPos.z += 0.001f;
+		//キーボード入力矢印キーで弾を操作
+		if (GetKeyState(VK_LEFT) & 0x80) {
+			m_Shot[i].vPos.x -= 0.001f;
+		}
+		if (GetKeyState(VK_RIGHT) & 0x80) {
+			m_Shot[i].vPos.x += 0.001f;
+		}
+		if (GetKeyState(VK_UP) & 0x80) {
+			m_Shot[i].vPos.y += 0.001f;
+		}
+		if (GetKeyState(VK_DOWN) & 0x80) {
+			m_Shot[i].vPos.y -= 0.001f;
+		}
+	}
 	//移動
 	for (int i = 0; i < m_iNumModel; i++) 
 	{
-		m_Model[i].vPos.x += 0.001f;
+		m_Model[i].vPos.z -= 0.0002f;
 	}
 	Render();
 }
@@ -310,7 +338,7 @@ HRESULT WIN::InitPolygon()
 
 	//全てのモデルで同じポリゴン。同じバーテックスバッファーを使う。モデルごとに異なるのはモデルの位置と色
 	for (int i = 0; i < MAX_MODEL; i++) {
-		m_Model[i].vPos = D3DXVECTOR3(float(rand()) / 1000.0f - 16.0f, float(rand()) / 1000.0f - 16.0f, float(rand()) / 1000.0f + 10.0f);	//初期位置はランダム
+		m_Model[i].vPos = D3DXVECTOR3(float(rand()) / 5000.0f-3.0f, float(rand()) / 5000.0f - 3.0f, float(rand()) / 5000.0f + 20.0f);	//初期位置はランダム
 		m_Model[i].vColor = D3DXVECTOR4(float(rand()) / 32767.0f, float(rand()) / 32767.0f, float(rand()) / 32767.0f, 1.0f);				//色もランダム設定
 	}
 	m_iNumModel = MAX_MODEL;
@@ -348,7 +376,32 @@ void WIN::Render()
 	m_pDeviceContext->IASetInputLayout(m_pVertexLayout);
 	//プリミティブトポロジーをセット
 	m_pDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	
 	//プリミティブをレンダリング、複数なのでワールドトランスフォームとそれを渡す部分をループ内で処理
+	for (int i = 0; i < m_iNumShot; i++) {
+		D3DXMATRIX mTrans, mScale;
+		D3DXMatrixScaling(&mScale, 0.5, 0.5, 0.5);
+		D3DXMatrixTranslation(&mTrans, m_Shot[i].vPos.x, m_Shot[i].vPos.y, m_Shot[i].vPos.z);
+		mWorld = mScale * mTrans;
+		//シェーダーのコンスタントバッファーに各種データーを渡す
+		D3D11_MAPPED_SUBRESOURCE pData;
+		SIMPLESHADER_CONSTANT_BUFFER cb;
+		if (SUCCEEDED(m_pDeviceContext->Map(m_pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &pData)))
+		{
+			//ワールド、カメラ、射影行列を渡す
+			D3DXMATRIX m = mWorld * mView*mProj;
+			D3DXMatrixTranspose(&m, &m);
+			cb.mWVP = m;
+			//カラーを渡す
+			cb.vColor = m_Shot[i].vColor;
+			memcpy_s(pData.pData, pData.RowPitch, (void*)(&cb), sizeof(cb));
+			m_pDeviceContext->Unmap(m_pConstantBuffer, 0);
+		}
+		//プリミティブをレンダリング
+		m_pDeviceContext->Draw(3, 0);
+	}
+
+	//的ポリゴン1000個レンダリング
 	for (int i = 0; i < m_iNumModel; i++) {
 		D3DXMATRIX mTrans;
 		D3DXMatrixTranslation(&mTrans, m_Model[i].vPos.x, m_Model[i].vPos.y, m_Model[i].vPos.z);
