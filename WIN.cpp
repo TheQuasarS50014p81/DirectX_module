@@ -115,6 +115,11 @@ void WIN::Loop()
 //アプリケーション処理。アプリのメイン関数
 void WIN::App()
 {
+	//移動
+	for (int i = 0; i < m_iNumModel; i++) 
+	{
+		m_Model[i].vPos.x += 0.001f;
+	}
 	Render();
 }
 
