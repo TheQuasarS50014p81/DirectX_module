@@ -16,6 +16,12 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, LPSTR szStr, INT iC
 		if(SUCCEEDED(g_pWin->InitWindow(hInstance,0,0,WINDOW_WIDTH,
 			WINDOW_HEIGHT,APP_NAME)))
 		{
+			if (FAILED(g_pWin->InitXAudio())) {
+				return 0;
+			}
+			if (FAILED(g_pWin->LoadSound(const_cast<LPSTR>("blast.wav"), 0))) {
+				return 0;
+			}
 			if (SUCCEEDED(g_pWin->InitD3D())) {
 				g_pWin->Loop();
 			}
@@ -116,6 +122,22 @@ void WIN::Loop()
 //アプリケーション処理。アプリのメイン関数
 void WIN::App()
 {
+	for (int i = 0; i < m_iNumShot; i++) {
+		for (int k = 0; k < m_iNumModel; k++) {
+			if (D3DXVec3Length(&(m_Shot[i].vPos - m_Model[k].vPos)) < 1.0f) {
+				//効果音
+				PlaySound(0);
+				// 消去処理
+				MODEL temp;
+				memcpy(&m_Shot[i], &m_Shot[m_iNumShot - 1], sizeof(MODEL));
+				m_iNumShot--;
+				memcpy(&m_Model[k], &m_Model[m_iNumModel - 1], sizeof(MODEL));
+				m_iNumModel--;
+				break;
+			}
+		}
+	}
+
 	//キーボード入力　スペースキーで発射
 	static int Safety = 0;	//弾の出しすぎを防止４００フレームに１回出るようにする
 	Safety++;
@@ -245,6 +267,61 @@ void WIN::DestroyD3D()
 	SAFE_RELEASE(m_pDepthStencil);
 	SAFE_RELEASE(m_pDepthStencilView);
 	SAFE_RELEASE(m_pDevice);
+	SAFE_RELEASE(m_pXAudio2);
+}
+
+HRESULT WIN::InitXAudio()
+{
+	CoInitializeEx(NULL, COINIT_MULTITHREADED);
+
+	if (FAILED(XAudio2Create(&m_pXAudio2, XAUDIO2_DEBUG_ENGINE))) {
+		CoUninitialize();
+		return E_FAIL;
+	}
+	if (FAILED(m_pXAudio2->CreateMasteringVoice(&m_pMasteringVoice))) {
+		CoUninitialize();
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT WIN::LoadSound(LPSTR szFileName, DWORD dwIndex) 
+{
+	HMMIO hMmio = NULL;		//windowsマルチメディアAPIのハンドル（windowsマルチメディアAPIはwavファイル関係操作用のAPI）
+	DWORD dwWavSize = 0;	//WAVファイル内のWAVデーターのサイズ（WAVファイルはWAVデータで占められている)
+	WAVEFORMATEX *pwfex;	//wavのフォーマット
+	MMCKINFO	ckInfo;		//チャンク情報
+	MMCKINFO	riffckInfo;	//最上部チャンク（RIFFチャンク）保存用
+	PCMWAVEFORMAT pcmWaveForm;
+	//WAVファイル内のヘッダー情報の確認と読み込み
+	hMmio = mmioOpenA(szFileName, NULL, MMIO_ALLOCBUF | MMIO_READ);
+	//ファイルポインタをRIFFチャンクの先頭にセットする
+	mmioDescend(hMmio, &riffckInfo, NULL, 0);
+	//ファイルポインタを'f','m','t' ' ' チャンクにセットする
+	ckInfo.ckid = mmioFOURCC('f', 'm', 't', ' ');
+	mmioDescend(hMmio, &ckInfo, &riffckInfo, MMIO_FINDCHUNK);
+	//フォーマットを読み込む
+	mmioRead(hMmio, (HPSTR)&pcmWaveForm, sizeof(pcmWaveForm));
+	pwfex = (WAVEFORMATEX*)new CHAR[sizeof(pcmWaveForm)];
+	memcpy(pwfex, &pcmWaveForm, sizeof(pcmWaveForm));
+	pwfex->cbSize = 0;
+	mmioAscend(hMmio, &ckInfo, 0);
+	//WAVファイル内の音データの読み込み
+	ckInfo.ckid = mmioFOURCC('d', 'a', 't', 'a');
+	mmioDescend(hMmio, &ckInfo, &riffckInfo, MMIO_FINDCHUNK);	//データチャンクにセット
+	dwWavSize = ckInfo.cksize;
+	m_pWavBuffer[dwIndex] = new BYTE[dwWavSize];
+	DWORD dwOffset = ckInfo.dwDataOffset;
+	mmioRead(hMmio, (HPSTR)m_pWavBuffer[dwIndex], dwWavSize);
+	//ソースボイスにデーターを詰め込む
+	if (FAILED(m_pXAudio2->CreateSourceVoice(&m_pSourceVoice[dwIndex], pwfex)))
+	{
+		MessageBox(0, L"ソースボイス作成失敗", 0, MB_OK);
+		return E_FAIL;
+	}
+	m_dwWavSize[dwIndex] = dwWavSize;
+
+	return S_OK;
 }
 
 //シェーダーを作成
@@ -425,4 +502,21 @@ void WIN::Render()
 	}
 
 	m_pSwapChain->Present(0, 0);		//画面更新
+}
+
+//
+//
+//
+HRESULT WIN::PlaySound(DWORD dwIndex)
+{
+	XAUDIO2_BUFFER buffer = { 0 };
+	buffer.pAudioData = m_pWavBuffer[dwIndex];
+	buffer.Flags = XAUDIO2_END_OF_STREAM;
+	buffer.AudioBytes = m_dwWavSize[dwIndex];
+	if (FAILED(m_pSourceVoice[dwIndex]->SubmitSourceBuffer(&buffer)))
+	{
+		MessageBox(0, L"ソースボイスにサブミット失敗", 0, MB_OK);
+		return E_FAIL;
+	}
+	m_pSourceVoice[dwIndex]->Start(0, XAUDIO2_COMMIT_NOW);
 }
