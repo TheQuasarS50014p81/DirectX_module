@@ -182,13 +182,14 @@ HRESULT DX_MODULE::InitPolygon()
 	//バーテックスバッファー作成
 	SimpleVertex vertices[] =
 	{
-		D3DXVECTOR3(0.0f,0.5f,0.0f),
-		D3DXVECTOR3(0.5f, -0.5f, 0.0f),
-		D3DXVECTOR3(-0.5f,-0.5f, 0.0f),
+		D3DXVECTOR3(-0.5,-0.5,0),//頂点1	
+		D3DXVECTOR3(-0.5,0.5,0), //頂点2
+		D3DXVECTOR3(0.5,-0.5,0),  //頂点3
+		D3DXVECTOR3(0.5,0.5,0), //頂点4	
 	};
 	D3D11_BUFFER_DESC bd;
 	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(SimpleVertex) * 3;
+	bd.ByteWidth = sizeof(SimpleVertex) * 4;
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bd.CPUAccessFlags = 0;
 	bd.MiscFlags = 0;
@@ -242,7 +243,7 @@ void DX_MODULE::Render()
 		D3DXMatrixTranspose(&m, &m);
 		cb.mWVP = m;
 		//カラーを渡す
-		D3DXVECTOR4 vColor(1, 0, 0, 1);
+		D3DXVECTOR4 vColor(0, 1, 0, 0);
 		cb.vColor = vColor;
 		memcpy_s(pData.pData, pData.RowPitch, (void*)(&cb), sizeof(cb));
 		m_pDeviceContext->Unmap(m_pConstantBuffer, 0);
@@ -253,9 +254,9 @@ void DX_MODULE::Render()
 	//頂点インプットレイアウト
 	m_pDeviceContext->IASetInputLayout(m_pVertexLayout);
 	//プリミティブトポロジーをセット
-	m_pDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	m_pDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 	//プリミティブをレンダリング
-	m_pDeviceContext->Draw(3, 0);
+	m_pDeviceContext->Draw(4, 0);
 
 	m_pSwapChain->Present(0, 0);		//画面更新
 }
