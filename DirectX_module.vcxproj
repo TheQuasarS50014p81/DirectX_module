@@ -126,9 +126,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="dx_module.cpp" />
+    <ClCompile Include="Source.cpp" />
     <ClCompile Include="WIN.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="dx_module.h" />
     <ClInclude Include="WIN.h" />
   </ItemGroup>
   <ItemGroup>
