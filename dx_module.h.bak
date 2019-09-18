@@ -3,6 +3,8 @@
 #include <D3DX10.h>
 #include <d3dx11.h>
 #include <d3dcompiler.h>
+#include <XAudio2.h>
+#include <mmsystem.h>
 #include "WIN.h"
 
 #pragma comment(lib,"d3d11.lib")
@@ -53,13 +55,13 @@ public:
 	ID3D11RenderTargetView *m_pRenderTargetView;
 	ID3D11DepthStencilView *m_pDepthStencilView;
 	ID3D11Texture2D *m_pDepthStencil;
-	ID3D11RasterizerState *m_pRasterizerState;
-	//↓モデルの種類ごと(モデルの構造が全て同一ならアプリにひとつ)
+	//新規
 	ID3D11InputLayout	*m_pVertexLayout;
 	ID3D11VertexShader	*m_pVertexShader;
 	ID3D11PixelShader	*m_pPixelShader;
 	ID3D11Buffer		*m_pConstantBuffer;
-	//↓モデルごと
+	//バーテックスバッファ
 	ID3D11Buffer		*m_pVertexBuffer;
+	//↓モデルごと
 	MY_MESH m_Mesh;
 };

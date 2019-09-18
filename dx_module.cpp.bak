@@ -6,7 +6,6 @@ DX_MODULE::DX_MODULE()
 
 DX_MODULE::~DX_MODULE()
 {
-	ZeroMemory(this, sizeof(DX_MODULE));
 };
 //
 //
@@ -362,7 +361,7 @@ void DX_MODULE::Render()
 		D3DXMatrixTranspose(&m, &m);
 		cb.mWVP = m;
 		
-		memcpy_s(pData.pData, pData.RowPitch, (void*)(&cb), sizeof(cb));
+		memcpy_s(pData.pData, pData.RowPitch, (void*)(&cb), sizeof(SIMPLESHADER_CONSTANT_BUFFER));
 		m_pDeviceContext->Unmap(m_pConstantBuffer, 0);
 	}
 	//このコンスタントバッファーを使うシェーダーの登録
@@ -375,7 +374,7 @@ void DX_MODULE::Render()
 	//バーテックスバッファーをセット
 	UINT stride = sizeof(D3DXVECTOR3);
 	UINT offset = 0;
-	m_pDeviceContext->IASetVertexBuffers(0, 1, &m_Mesh.pVertexBuffer, &stride, &offset);
+	m_pDeviceContext->IASetVertexBuffers(0, 1, &m_Mesh.pIndexBuffer, &stride, &offset);
 	//インデックスバッファーをセット
 	stride = sizeof(int);
 	offset = 0;
